@@ -1,48 +1,92 @@
 using UnityEngine;
-using System.Collections; // Ajout pour utiliser IEnumerator
+using System.Collections;
+using System; // Import pour les événements
 
 public class GameManager : MonoBehaviour
 {
-    public GameObject cardPrefab; // Assigner un Prefab dans l'Inspector
+    public GameObject cardPrefab;
     private Card cardA;
     private Card cardB;
 
+    public event Action<PlayerManager> OnEventTriggered; // Déclare un événement global
+
     void Start()
     {
-        // Trouver le GridManager en utilisant la méthode correcte
-        GridManager gridManager = FindFirstObjectByType<GridManager>();
+        Debug.Log("GameManager: Initialisation du jeu...");
 
-        if (gridManager == null)
+        // Vérifier si ChampionManager est bien présent
+        if (ChampionManager.instance == null)
         {
-            Debug.LogError("GameManager: Impossible de trouver GridManager !");
+            Debug.LogError("ChampionManager n'est pas trouvé dans la scène !");
             return;
         }
 
-        // Démarrer la coroutine pour attendre que la grille soit prête
+        // Récupérer les joueurs
+        PlayerManager[] players = FindObjectsByType<PlayerManager>(FindObjectsSortMode.None);
+        if (players.Length == 0)
+        {
+            Debug.LogError("Aucun joueur trouvé dans la scène !");
+            return;
+        }
+
+        // Liste des champions disponibles
+        string[] availableChampions = { "Dragon", "Titan", "Phénix", "Samouraï" };
+
+        foreach (PlayerManager player in players)
+        {
+            foreach (string champ in availableChampions)
+            {
+                if (ChampionManager.instance.AssignChampionToPlayer(player, champ))
+                {
+                    Debug.Log($"{player.playerName} a choisi {champ} comme champion !");
+                    break; // Dès qu'un champion est attribué, on sort de la boucle
+                }
+            }
+        }
+
+        // Vérifier si le GridManager est disponible
+        GridManager gridManager = FindFirstObjectByType<GridManager>();
+        if (gridManager == null)
+        {
+            Debug.LogError("GridManager n'est pas trouvé dans la scène !");
+            return;
+        }
+
+        // Démarrer l'initialisation de la grille avant de placer les cartes
         StartCoroutine(WaitForGridInitialization(gridManager));
+
+        // Lancer la routine des événements aléatoires
+        StartCoroutine(RandomEventRoutine());
+
+        Debug.Log("GameManager: Jeu initialisé avec succès !");
     }
 
     IEnumerator WaitForGridInitialization(GridManager gridManager)
     {
-        // Attendre que la grille soit générée
-        while (gridManager.gridCells == null)
+        Debug.Log("GameManager: Attente de l'initialisation de la grille...");
+
+        while (!gridManager.IsGridReady())
         {
-            yield return null; // Attendre une frame
+            yield return null; // Attendre une frame jusqu'à ce que la grille soit prête
         }
 
-        // Placer les cartes sur des cellules spécifiques de la grille
-        Vector3 posCardA = gridManager.GetCellPosition(0, 0); // Cellule (0,0)
-        Vector3 posCardB = gridManager.GetCellPosition(0, 1); // Cellule (0,1)
+        Debug.Log("GameManager: Grille prête, placement des cartes...");
 
-        // Instancier les cartes sans redéclarer les variables
+        if (cardPrefab == null)
+        {
+            Debug.LogError("cardPrefab n'est pas assigné dans l'Inspector !");
+            yield break;
+        }
+
+        Vector3 posCardA = gridManager.GetCellPosition(0, 0);
+        Vector3 posCardB = gridManager.GetCellPosition(0, 1);
+
         GameObject cardAObj = Instantiate(cardPrefab, posCardA, Quaternion.identity);
         GameObject cardBObj = Instantiate(cardPrefab, posCardB, Quaternion.identity);
 
-        // Récupérer les scripts des cartes
         cardA = cardAObj.GetComponent<Card>();
         cardB = cardBObj.GetComponent<Card>();
 
-        // Configurer les cartes
         cardA.cardName = "Guerrier Revive";
         cardA.attack = 3;
         cardA.defense = 5;
@@ -53,10 +97,47 @@ public class GameManager : MonoBehaviour
         cardB.defense = 4;
         cardB.cardEffect = Card.EffectType.Implacable;
 
-        // Lancer le combat
         cardA.Attack(cardB);
         cardB.Attack(cardA);
+
+        Debug.Log("GameManager: Cartes placées avec succès !");
+    }
+
+    IEnumerator RandomEventRoutine()
+    {
+        while (true)
+        {
+            yield return new WaitForSeconds(10f); // Attendre 10 secondes avant le prochain événement
+
+            PlayerManager[] allPlayers = FindObjectsByType<PlayerManager>(FindObjectsSortMode.None);
+            if (allPlayers.Length > 0)
+            {
+                PlayerManager randomPlayer = allPlayers[UnityEngine.Random.Range(0, allPlayers.Length)];
+
+                if (randomPlayer != null)
+                {
+                    TriggerRandomEvent(randomPlayer);
+                }
+            }
+        }
+    }
+
+    void TriggerRandomEvent(PlayerManager player)
+    {
+        int eventType = UnityEngine.Random.Range(0, 2); // 0 = économique, 1 = agressif
+
+        if (eventType == 0)
+        {
+            player.AddEconomyPoints(5);
+            Debug.Log($"{player.playerName} a choisi un bonus Économique ! (+5 économie)");
+        }
+        else
+        {
+            player.AddCardPoints(5);
+            Debug.Log($"{player.playerName} a choisi un bonus Agressif ! (+5 attaque)");
+        }
+
+        // Déclencher l'événement pour tous les abonnés
+        OnEventTriggered?.Invoke(player);
     }
 }
-
-
