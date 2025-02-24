@@ -9,6 +9,10 @@ public class GridManager : MonoBehaviour
 
     public GameObject[,] gridCells { get; private set; }
 
+    public bool IsGridReady()
+    {
+        return gridCells != null;
+    }
 
     void Start()
     {
