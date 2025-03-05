@@ -1,27 +1,64 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 public class Card : MonoBehaviour
 {
     public string cardName;
     public int attack;
     public int defense;
+    public int cost;
 
-    public enum EffectType { None, Revive, Absorbe, Implacable }
+    public enum EffectType { None, Revive, Absorb, Relentless }
     public EffectType cardEffect;
 
-    private bool hasAbsorbedDamage = false;  // Pour l'effet Absorbe
+    [System.Serializable]
+    public class PositionAbility
+    {
+        public int requiredRow;
+        public int requiredColumn;
+        public int attackBonus;
+        public int defenseBonus;
+    }
+
+    public List<PositionAbility> positionAbilities = new List<PositionAbility>();
+    private Vector2Int gridPosition;
+    private bool hasAbsorbedDamage = false;
+    private bool isSelected = false; // Pour g√©rer la s√©lection
+
+    public bool CanPlayCard(GoldManager goldManager)
+    {
+        return goldManager.SpendGold(cost);
+    }
+
+    public void SetGridPosition(int row, int col)
+    {
+        gridPosition = new Vector2Int(row, col);
+        ApplyPositionBonuses();
+    }
+
+    private void ApplyPositionBonuses()
+    {
+        foreach (var ability in positionAbilities)
+        {
+            if (gridPosition.x == ability.requiredRow && gridPosition.y == ability.requiredColumn)
+            {
+                attack += ability.attackBonus;
+                defense += ability.defenseBonus;
+            }
+        }
+    }
 
     public void TakeDamage(int damage)
     {
-        if (cardEffect == EffectType.Absorbe && !hasAbsorbedDamage)
+        if (cardEffect == EffectType.Absorb && !hasAbsorbedDamage)
         {
-            Debug.Log($"{cardName} ignore les premiers dÈg‚ts gr‚ce ‡ Absorbe !");
-            hasAbsorbedDamage = true;  // Annule le premier dÈg‚t
+            Debug.Log($"{cardName} ignore les premiers d√©g√¢ts gr√¢ce √† Absorb !");
+            hasAbsorbedDamage = true;
             return;
         }
 
         defense -= damage;
-        Debug.Log($"{cardName} subit {damage} dÈg‚ts, PV restants : {defense}");
+        Debug.Log($"{cardName} subit {damage} d√©g√¢ts, PV restants : {defense}");
 
         if (defense <= 0)
         {
@@ -31,13 +68,13 @@ public class Card : MonoBehaviour
             }
             else
             {
-                if (gameObject.scene.IsValid())  // VÈrifie si l'objet est dans la scËne
+                if (gameObject.scene.IsValid())
                 {
                     Destroy(gameObject);
                 }
                 else
                 {
-                    Debug.LogWarning($"{cardName} ne peut pas Ítre dÈtruite car elle est un asset !");
+                    Debug.LogWarning($"{cardName} ne peut pas √™tre d√©truite car elle est un asset !");
                 }
             }
         }
@@ -45,20 +82,43 @@ public class Card : MonoBehaviour
 
     public void Attack(Card target)
     {
+        if (target == null)
+        {
+            Debug.LogError("La cible de l'attaque est null !");
+            return;
+        }
+
         Debug.Log($"{cardName} attaque {target.cardName} !");
         target.TakeDamage(attack);
 
-        if (cardEffect == EffectType.Implacable)
+        if (cardEffect == EffectType.Relentless)
         {
-            Debug.Log($"{cardName} attaque une seconde fois gr‚ce ‡ Implacable !");
+            Debug.Log($"{cardName} attaque une seconde fois gr√¢ce √† Relentless !");
             target.TakeDamage(attack);
         }
     }
 
     private void Revive()
     {
-        Debug.Log($"{cardName} ressuscite gr‚ce ‡ Revive !");
-        defense = 5;  // On lui redonne des PV (ajuste selon ton Èquilibrage)
+        Debug.Log($"{cardName} ressuscite gr√¢ce √† Revive !");
+        defense = 5;
+    }
+
+    // Gestion de la s√©lection
+    private void OnMouseDown()
+    {
+        if (Input.GetMouseButtonDown(0)) // Clic gauche
+        {
+            GameManager.Instance.SelectCard(this); // S√©lectionne cette carte
+        }
+    }
+
+    // Change l'apparence lorsqu'une carte est s√©lectionn√©e
+    public void SetSelected(bool selected)
+    {
+        isSelected = selected;
+        // Changez la couleur ou l'apparence de la carte pour indiquer la s√©lection
+        GetComponent<SpriteRenderer>().color = selected ? Color.yellow : Color.white;
     }
 }
 
