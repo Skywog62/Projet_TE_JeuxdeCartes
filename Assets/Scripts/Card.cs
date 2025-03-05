@@ -121,5 +121,3 @@ public class Card : MonoBehaviour
         GetComponent<SpriteRenderer>().color = selected ? Color.yellow : Color.white;
     }
 }
-
-
