@@ -23,6 +23,21 @@ public class GridManager : MonoBehaviour
         return Vector3.zero;
     }
 
+    public Vector2Int GetEmptyCell()
+    {
+        for (int x = 0; x < rows; x++)
+        {
+            for (int y = 0; y < columns; y++)
+            {
+                if (!gridCells[x, y].GetComponent<Cell>().isOccupied)
+                {
+                    return new Vector2Int(x, y);
+                }
+            }
+        }
+        return new Vector2Int(-1, -1); // Aucune cellule libre
+    }
+
     void CreateGrid()
     {
         gridCells = new GameObject[rows, columns];

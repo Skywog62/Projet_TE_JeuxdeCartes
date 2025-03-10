@@ -3,7 +3,7 @@ using TMPro;
 
 public class ScoutUI : MonoBehaviour
 {
-    public TextMeshPro economyText; // Assurez-vous que c'est bien assigné dans l'Inspector
+    public TextMeshPro economyText;
 
     public void UpdateScoutInfo(PlayerManager player)
     {

@@ -23,7 +23,18 @@ public class Card : MonoBehaviour
     public List<PositionAbility> positionAbilities = new List<PositionAbility>();
     private Vector2Int gridPosition;
     private bool hasAbsorbedDamage = false;
-    private bool isSelected = false; // Pour gérer la sélection
+    private bool isSelected = false;
+    private bool hasRevived = false;
+
+    void Start()
+    {
+        if (gameObject.CompareTag("Untagged")) // Vérifie si le tag est vide
+        {
+            gameObject.tag = "Player"; // Définit les cartes du joueur comme "Player"
+            Debug.Log($"{cardName} a maintenant le tag 'Player'");
+        }
+    }
+
 
     public bool CanPlayCard(GoldManager goldManager)
     {
@@ -50,6 +61,8 @@ public class Card : MonoBehaviour
 
     public void TakeDamage(int damage)
     {
+        Debug.Log($"{cardName} subit {damage} dégâts AVANT : {defense} PV");
+
         if (cardEffect == EffectType.Absorb && !hasAbsorbedDamage)
         {
             Debug.Log($"{cardName} ignore les premiers dégâts grâce à Absorb !");
@@ -58,7 +71,7 @@ public class Card : MonoBehaviour
         }
 
         defense -= damage;
-        Debug.Log($"{cardName} subit {damage} dégâts, PV restants : {defense}");
+        Debug.Log($"{cardName} subit {damage} dégâts APRES : {defense} PV");
 
         if (defense <= 0)
         {
@@ -70,6 +83,7 @@ public class Card : MonoBehaviour
             {
                 if (gameObject.scene.IsValid())
                 {
+                    Debug.Log($"{cardName} est détruite !");
                     Destroy(gameObject);
                 }
                 else
@@ -79,6 +93,7 @@ public class Card : MonoBehaviour
             }
         }
     }
+
 
     public void Attack(Card target)
     {
@@ -98,26 +113,41 @@ public class Card : MonoBehaviour
         }
     }
 
+
     private void Revive()
     {
-        Debug.Log($"{cardName} ressuscite grâce à Revive !");
-        defense = 5;
+        if (!hasRevived) // ✅ Vérifie si la carte n’a pas déjà été ressuscitée
+        {
+            Debug.Log($"{cardName} ressuscite grâce à Revive !");
+            defense = 5;
+            hasRevived = true; // ✅ Marque la carte comme ayant déjà été ressuscitée
+        }
+        else
+        {
+            Debug.Log($"{cardName} ne peut pas ressusciter à nouveau !");
+            Destroy(gameObject); // ✅ Supprime la carte si elle doit mourir définitivement
+        }
     }
 
-    // Gestion de la sélection
     private void OnMouseDown()
     {
         if (Input.GetMouseButtonDown(0)) // Clic gauche
         {
-            GameManager.Instance.SelectCard(this); // Sélectionne cette carte
+            GameManager.Instance.SelectCard(this);
         }
     }
 
-    // Change l'apparence lorsqu'une carte est sélectionnée
     public void SetSelected(bool selected)
     {
         isSelected = selected;
-        // Changez la couleur ou l'apparence de la carte pour indiquer la sélection
-        GetComponent<SpriteRenderer>().color = selected ? Color.yellow : Color.white;
+        MeshRenderer mr = GetComponent<MeshRenderer>();
+        if (mr != null)
+        {
+            mr.material.color = selected ? Color.yellow : Color.white;
+        }
+        else
+        {
+            Debug.LogWarning($"{cardName} n'a pas de MeshRenderer attaché !");
+        }
     }
 }

@@ -4,10 +4,10 @@ using TMPro;
 public class GoldManager : MonoBehaviour
 {
     public int currentGold = 0;
-    public int goldPerTurn = 5; // Pièces gagnées par tour
-    public int startingGold = 10; // Pièces de départ
+    public int goldPerTurn = 5; // Gain d'or par tour
+    public int startingGold = 10; // Or de départ
 
-    public TextMeshPro goldText; // Assurez-vous que c'est bien assigné dans l'Inspector
+    public TextMeshPro goldText;
 
     void Start()
     {
@@ -17,30 +17,30 @@ public class GoldManager : MonoBehaviour
             return;
         }
 
-        // Donne les pièces de départ au joueur
+        // Donne l'or de départ au joueur
         GainGold(startingGold);
     }
 
-    // Gagne des pièces
+    // Ajoute de l'or au joueur
     public void GainGold(int amount)
     {
         currentGold += amount;
-        UpdateGoldUI(); // Met à jour l'UI après chaque gain
+        UpdateGoldUI();
     }
 
-    // Dépense des pièces
+    // Dépense de l'or
     public bool SpendGold(int amount)
     {
         if (currentGold >= amount)
         {
             currentGold -= amount;
-            UpdateGoldUI(); // Met à jour l'UI après chaque dépense
-            return true; // Dépense réussie
+            UpdateGoldUI();
+            return true;
         }
-        return false; // Pas assez de pièces
+        return false; // Pas assez d'or
     }
 
-    // Met à jour l'UI des pièces
+    // Met à jour l'affichage de l'or
     private void UpdateGoldUI()
     {
         if (goldText != null)
@@ -53,7 +53,7 @@ public class GoldManager : MonoBehaviour
         }
     }
 
-    // Gain de pièces à la fin du tour
+    // Gagne de l'or à la fin du tour
     public void EndTurn()
     {
         GainGold(goldPerTurn);

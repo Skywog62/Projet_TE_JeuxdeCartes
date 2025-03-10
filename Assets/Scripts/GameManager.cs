@@ -5,136 +5,197 @@ using System.Linq;
 
 public class GameManager : MonoBehaviour
 {
-    public static GameManager Instance; // Singleton pour accéder au GameManager
+    public static GameManager Instance;
 
     public GameObject cardPrefab;
     public ScoutUI scoutUI;
     public GoldManager goldManager;
+    public EventManager eventManager;
+    private IA enemyAI;
 
-    private Card cardA;
-    private Card cardB;
-    private List<PlayerManager> opponents = new List<PlayerManager>();
-    private int currentOpponentIndex = 0;
+    public List<Card> availableChampions = new List<Card>();
 
-    private Card selectedCard; // Carte sélectionnée pour attaquer
+    private Card selectedCard;
+    private bool gameOver = false;
+    private bool isPlayerTurn = true;
 
     void Awake()
     {
         if (Instance == null)
-        {
             Instance = this;
-        }
         else
-        {
             Destroy(gameObject);
-        }
     }
 
     void Start()
     {
+        goldManager = FindFirstObjectByType<GoldManager>();
+        eventManager = FindFirstObjectByType<EventManager>();
+        enemyAI = FindFirstObjectByType<IA>();
+
+        if (goldManager == null) Debug.LogError("GoldManager n'est pas trouvé dans la scène !");
+        if (eventManager == null) Debug.LogError("EventManager n'est pas trouvé dans la scène !");
+        if (enemyAI == null) Debug.LogError("L'IA (enemyAI) n'est pas trouvée !");
+
         goldManager.GainGold(goldManager.startingGold);
-
-        // Initialisation des adversaires
-        for (int i = 0; i < 3; i++)
-        {
-            GameObject opponentObj = new GameObject($"Opponent{i}");
-            PlayerManager opponent = opponentObj.AddComponent<PlayerManager>();
-            opponent.playerName = $"Opponent{i}";
-            opponent.Health = 100;
-            opponents.Add(opponent);
-        }
-
-        GridManager gridManager = FindFirstObjectByType<GridManager>();
-        scoutUI.UpdateScoutInfo(opponents[currentOpponentIndex]);
-        StartCoroutine(WaitForGridInitialization(gridManager));
+        StartCoroutine(WaitForGridInitialization());
     }
 
-    IEnumerator WaitForGridInitialization(GridManager gridManager)
+    IEnumerator WaitForGridInitialization()
     {
+        GridManager gridManager = FindFirstObjectByType<GridManager>();
         while (gridManager.gridCells == null) yield return null;
 
-        Vector3 posCardA = gridManager.GetCellPosition(0, 0);
-        Vector3 posCardB = gridManager.GetCellPosition(0, 1);
+        // Placement du joueur (en bas)
+        Vector3 posCardPlayer = gridManager.GetCellPosition(3, 1);
+        GameObject cardPlayerObj = Instantiate(cardPrefab, posCardPlayer, Quaternion.identity);
+        Card cardPlayer = cardPlayerObj.GetComponent<Card>();
+        cardPlayer.cardName = "Guerrier Revive";
+        cardPlayer.attack = 3;
+        cardPlayer.defense = 5;
+        cardPlayer.cost = 3;
+        cardPlayer.cardEffect = Card.EffectType.Revive;
+        cardPlayerObj.tag = "Player";
 
-        GameObject cardAObj = Instantiate(cardPrefab, posCardA, Quaternion.identity);
-        GameObject cardBObj = Instantiate(cardPrefab, posCardB, Quaternion.identity);
-
-        cardA = cardAObj.GetComponent<Card>();
-        cardB = cardBObj.GetComponent<Card>();
-
-        // Configuration des cartes
-        cardA.cardName = "Guerrier Revive";
-        cardA.attack = 3;
-        cardA.defense = 5;
-        cardA.cost = 3;
-        cardA.cardEffect = Card.EffectType.Revive;
-
-        cardB.cardName = "Archer Relentless";
-        cardB.attack = 2;
-        cardB.defense = 4;
-        cardB.cost = 2;
-        cardB.cardEffect = Card.EffectType.Relentless;
-
-        // Démarrez le combat contre les adversaires
-        StartCoroutine(FightNextOpponent());
+        // Placement de l’IA (en haut)
+        Vector3 posCardIA = gridManager.GetCellPosition(0, 1);
+        GameObject cardIAObj = Instantiate(cardPrefab, posCardIA, Quaternion.identity);
+        Card cardIA = cardIAObj.GetComponent<Card>();
+        cardIA.cardName = "Archer Relentless";
+        cardIA.attack = 2;
+        cardIA.defense = 4;
+        cardIA.cost = 2;
+        cardIA.cardEffect = Card.EffectType.Relentless;
+        cardIAObj.tag = "Enemy";
     }
 
-    // Sélectionne une carte
     public void SelectCard(Card card)
     {
+        if (!isPlayerTurn) return;
+
         if (selectedCard != null)
-        {
-            selectedCard.SetSelected(false); // Désélectionne la carte précédente
-        }
+            selectedCard.SetSelected(false);
 
         selectedCard = card;
-        selectedCard.SetSelected(true); // Sélectionne la nouvelle carte
+        selectedCard.SetSelected(true);
     }
 
-    // Attaque une cible avec la carte sélectionnée
     public void AttackWithSelectedCard(Card target)
     {
-        if (selectedCard != null && target != null)
-        {
-            selectedCard.Attack(target);
-            selectedCard.SetSelected(false); // Désélectionne la carte après l'attaque
-            selectedCard = null;
-        }
-        else
-        {
-            Debug.Log("Aucune carte sélectionnée ou cible invalide !");
-        }
-    }
+        if (!isPlayerTurn || selectedCard == null || target == null) return;
 
-    IEnumerator FightNextOpponent()
-    {
-        while (currentOpponentIndex < opponents.Count)
-        {
-            yield return StartCoroutine(CombatRoutine(opponents[currentOpponentIndex]));
-            currentOpponentIndex++;
-        }
-    }
+        List<Card> enemyCards = FindObjectsByType<Card>(FindObjectsSortMode.None)
+            .Where(c => c.CompareTag("Enemy")).ToList();
 
-    IEnumerator CombatRoutine(PlayerManager opponent)
-    {
-        Debug.Log($"Combat contre {opponent.playerName} !");
-        yield return new WaitForSeconds(1);
-        opponent.Health -= 10;
-        Debug.Log($"{opponent.playerName} a {opponent.Health} PV restants.");
+        if (enemyCards.Count > 0 && !target.CompareTag("Enemy"))
+        {
+            Debug.Log("⚠️ Vous devez attaquer les cartes ennemies en premier !");
+            return;
+        }
+
+        selectedCard.Attack(target);
+        selectedCard.SetSelected(false);
+        selectedCard = null;
+
         CheckWinCondition();
+    }
+
+    public void EndTurn()
+    {
+        if (!isPlayerTurn || gameOver) return;
+
+        CheckWinCondition();
+
+        if (!gameOver)
+        {
+            isPlayerTurn = false;
+            Debug.Log("Tour du joueur terminé. Passage à l'IA...");
+            StartCoroutine(EnemyTurn());
+        }
+    }
+
+    IEnumerator EnemyTurn()
+    {
+        yield return new WaitForSeconds(1);
+
+        Debug.Log("Tour de l'IA !");
+        enemyAI.PlayTurn();
+
+        yield return new WaitForSeconds(1.5f);
+
+        CheckWinCondition();
+
+        if (!gameOver)
+        {
+            isPlayerTurn = true;
+            Debug.Log("Tour du joueur !");
+        }
     }
 
     public void CheckWinCondition()
     {
-        if (opponents.All(opponent => opponent.Health <= 0))
-            Debug.Log("Victoire !");
-        else if (FindFirstObjectByType<PlayerManager>().Health <= 0)
-            Debug.Log("Défaite...");
+        List<Card> playerCards = FindObjectsByType<Card>(FindObjectsSortMode.None)
+            .Where(c => c.CompareTag("Player")).ToList();
+
+        List<Card> enemyCards = FindObjectsByType<Card>(FindObjectsSortMode.None)
+            .Where(c => c.CompareTag("Enemy")).ToList();
+
+        PlayerManager player = FindFirstObjectByType<PlayerManager>();
+        IA enemy = FindFirstObjectByType<IA>();
+
+        if (playerCards.Count == 0)
+        {
+            Debug.Log("💥 Le joueur n'a plus de cartes, il prend 10 dégâts !");
+            player.TakeDamage(10);
+        }
+
+        if (enemyCards.Count == 0)
+        {
+            Debug.Log("💥 L'IA n'a plus de cartes, elle prend 10 dégâts !");
+            enemy.TakeDamage(10);
+        }
+
+        if (player.Health <= 0)
+        {
+            Debug.Log("💀 Défaite... Vous avez perdu !");
+            EndGame(false);
+        }
+
+        if (enemy.Health <= 0)
+        {
+            Debug.Log("🎉 Victoire ! L'IA a perdu !");
+            EndGame(true);
+        }
     }
 
-    // Gain de pièces à la fin du tour
-    public void EndTurn()
+    public bool TryPickChampion(Card champion)
     {
-        goldManager.EndTurn();
+        if (availableChampions.Contains(champion))
+        {
+            availableChampions.Remove(champion);
+            return true;
+        }
+        return false;
+    }
+
+
+    public void EndGame(bool playerWon)
+    {
+        gameOver = true;
+        isPlayerTurn = false;
+
+        if (playerWon)
+            Debug.Log("🏆 Vous avez gagné !");
+        else
+            Debug.Log("😵 Vous avez perdu...");
+
+        GameObject endTurnButton = GameObject.Find("EndTurnButton");
+        if (endTurnButton != null) endTurnButton.SetActive(false);
+    }
+
+    public void ForfeitGame()
+    {
+        Debug.Log("Le joueur a abandonné la partie.");
+        EndGame(false);
     }
 }

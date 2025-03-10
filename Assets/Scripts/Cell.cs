@@ -11,7 +11,7 @@ public class Cell : MonoBehaviour
         if (!isOccupied)
         {
             GameObject card = Instantiate(Resources.Load<GameObject>("Card"));
-            card.transform.position = transform.position; // Positionne la carte sur la case
+            card.transform.position = transform.position;
             card.GetComponent<Card>().SetGridPosition(row, column);
             isOccupied = true;
         }
