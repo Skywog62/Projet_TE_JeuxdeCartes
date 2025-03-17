@@ -7,28 +7,29 @@ public class GoldManager : MonoBehaviour
     public int goldPerTurn = 5; // Gain d'or par tour
     public int startingGold = 10; // Or de départ
 
-    public TextMeshPro goldText;
+    public TextMeshProUGUI goldText;
 
     void Start()
     {
         if (goldText == null)
         {
-            Debug.LogError("GoldText n'est pas assigné dans GoldManager !");
-            return;
+            goldText = FindFirstObjectByType<TextMeshProUGUI>();
+            if (goldText == null)
+            {
+                Debug.LogError("GoldText n'est pas assigné dans GoldManager !");
+                return;
+            }
         }
 
-        // Donne l'or de départ au joueur
         GainGold(startingGold);
     }
 
-    // Ajoute de l'or au joueur
     public void GainGold(int amount)
     {
         currentGold += amount;
         UpdateGoldUI();
     }
 
-    // Dépense de l'or
     public bool SpendGold(int amount)
     {
         if (currentGold >= amount)
@@ -37,10 +38,9 @@ public class GoldManager : MonoBehaviour
             UpdateGoldUI();
             return true;
         }
-        return false; // Pas assez d'or
+        return false;
     }
 
-    // Met à jour l'affichage de l'or
     private void UpdateGoldUI()
     {
         if (goldText != null)
@@ -53,7 +53,6 @@ public class GoldManager : MonoBehaviour
         }
     }
 
-    // Gagne de l'or à la fin du tour
     public void EndTurn()
     {
         GainGold(goldPerTurn);

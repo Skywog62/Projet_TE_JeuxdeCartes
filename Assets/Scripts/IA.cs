@@ -1,5 +1,4 @@
 using UnityEngine;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -7,120 +6,150 @@ public class IA : MonoBehaviour
 {
     public List<Card> deck = new List<Card>();
     public List<Card> hand = new List<Card>();
-    public int gold = 10;
     public int maxHandSize = 5;
-    public int Health = 100; // HP de l'IA
+    public int gold = 10;
+    public int Health = 100;
+    public string playerName = "IA";
 
     private GridManager gridManager;
-    private PlayerManager player;
 
     void Start()
     {
         gridManager = FindFirstObjectByType<GridManager>();
-        player = FindFirstObjectByType<PlayerManager>(); 
 
-        for (int i = 0; i < 3; i++)
+        if (gridManager == null)
+        {
+            Debug.LogError("❌ GridManager non trouvé !");
+            return;
+        }
+
+        InitializeDeck();
+        DrawInitialCards(3);
+    }
+
+    public void PlayTurn()
+    {
+        Debug.Log("L'IA joue son tour...");
+
+        DrawCard();
+
+        if (hand.Count > 0)
+        {
+            Debug.Log("L'IA joue une carte...");
+            // Logique pour jouer une carte ici...
+        }
+
+        Debug.Log("Fin du tour de l'IA.");
+        GameManager.Instance.EndTurn();
+    }
+
+    public void DrawInitialCards(int count)
+    {
+        for (int i = 0; i < count; i++)
         {
             DrawCard();
         }
     }
 
-    public void PlayTurn()
+    public void InitializeDeck()
     {
-        Debug.Log("L'IA commence son tour...");
-
-        if (hand.Count > 0)
+        if (GameManager.Instance == null || GameManager.Instance.cardPrefab == null)
         {
-            PlayBestCard();
+            Debug.LogError("❌ GameManager ou cardPrefab non défini !");
+            return;
         }
 
-        AttackPlayer();
+        deck.Clear();
+        string[] cardNames = { "Soldat IA", "Sniper IA", "Robot IA", "Tank IA" };
+        int[] attackValues = { 2, 5, 3, 4 };
+        int[] defenseValues = { 4, 2, 5, 6 };
+        int[] costs = { 2, 3, 3, 4 };
 
-        Debug.Log("Tour de l'IA terminé.");
-        GameManager.Instance.EndTurn();
-    }
-
-    void DrawCard()
-    {
-        if (deck.Count > 0 && hand.Count < maxHandSize)
+        for (int i = 0; i < cardNames.Length; i++)
         {
-            Card newCard = deck[0];
-            deck.RemoveAt(0);
-            hand.Add(newCard);
-            Debug.Log($"IA pioche {newCard.cardName}");
-        }
-    }
+            GameObject cardObj = Instantiate(GameManager.Instance.cardPrefab);
+            Card newCard = cardObj.GetComponent<Card>();
 
-    void PlayBestCard()
-    {
-        Card bestCard = hand.OrderByDescending(c => c.attack + c.defense).FirstOrDefault();
-
-        if (bestCard != null && gold >= bestCard.cost)
-        {
-            Vector2Int emptyCell = gridManager.GetEmptyCell();
-            if (emptyCell != Vector2Int.one * -1)
+            if (newCard == null)
             {
-                GameObject cardObj = Instantiate(GameManager.Instance.cardPrefab, gridManager.GetCellPosition(emptyCell.x, emptyCell.y), Quaternion.identity);
-                Card newCard = cardObj.GetComponent<Card>();
-                newCard.cardName = bestCard.cardName;
-                newCard.attack = bestCard.attack;
-                newCard.defense = bestCard.defense;
-                newCard.cost = bestCard.cost;
-                newCard.cardEffect = bestCard.cardEffect;
-                newCard.SetGridPosition(emptyCell.x, emptyCell.y);
-                newCard.gameObject.tag = "Enemy"; // ✅ Ajout du tag "Enemy"
-
-                gold -= bestCard.cost;
-                hand.Remove(bestCard);
-                Debug.Log($"IA joue {bestCard.cardName} !");
+                Debug.LogError("❌ Le prefab de carte n'a pas de script Card attaché !");
+                Destroy(cardObj);
+                continue;
             }
+
+            newCard.cardName = cardNames[i];
+            newCard.attack = attackValues[i];
+            newCard.defense = defenseValues[i];
+            newCard.cost = costs[i];
+
+            deck.Add(newCard);
+
+            // ✅ Suppression de l'objet temporaire pour éviter qu'il apparaisse dans la scène
+            Destroy(cardObj);
         }
+
+        ShuffleDeck();
     }
 
-    void AttackPlayer()
+    void ShuffleDeck()
     {
-        List<Card> myCards = FindObjectsByType<Card>(FindObjectsSortMode.None)
-            .Where(c => c != null && c.gameObject.activeInHierarchy).ToList();
+        deck = deck.OrderBy(x => Random.value).ToList();
+    }
 
-        List<Card> enemyCards = FindObjectsByType<Card>(FindObjectsSortMode.None)
-            .Where(c => c != null && c.gameObject.activeInHierarchy && c.CompareTag("Player")).ToList();
+    public void DrawCard()
+    {
+        Debug.Log($"🃏 Deck IA contient {deck.Count} cartes avant pioche.");
 
-        Debug.Log($"Cartes IA : {myCards.Count}, Cartes adverses trouvées : {enemyCards.Count}");
-
-        foreach (Card myCard in myCards)
+        if (deck.Count == 0)
         {
-            if (enemyCards.Count > 0)
-            {
-                Card target = enemyCards.OrderBy(c => c.defense).First();
-                myCard.Attack(target);
-                Debug.Log($"IA attaque {target.cardName} avec {myCard.cardName}");
+            Debug.LogWarning("⚠️ L'IA ne peut plus piocher, deck vide !");
+            Health -= 5;
+            return;
+        }
 
-                // ✅ Ajout d'un délai pour éviter que tout s'enchaîne trop vite
-                StartCoroutine(WaitBeforeNextAttack());
+        if (hand.Count < maxHandSize)
+        {
+            Card drawnCard = deck[0];
+            deck.RemoveAt(0);
+            hand.Add(drawnCard);
+            Debug.Log($"🤖 L'IA pioche {drawnCard.cardName} !");
+
+            // ✅ Vérification avant d'instancier
+            if (GameManager.Instance == null || GameManager.Instance.enemyHandUI == null)
+            {
+                Debug.LogWarning("⚠️ GameManager.Instance ou enemyHandUI est null, impossible d'afficher la carte !");
+                return;
+            }
+
+            // ✅ Instanciation correcte du GameObject pour la carte de l'IA
+            GameObject cardObj = Instantiate(GameManager.Instance.cardPrefab, GameManager.Instance.enemyHandUI);
+            cardObj.transform.SetParent(GameManager.Instance.enemyHandUI, false);
+
+            // ✅ Vérification du composant CardUI
+            CardUI cardUI = cardObj.GetComponent<CardUI>();
+            if (cardUI == null)
+            {
+                Debug.LogError("❌ Erreur : CardUI n'a pas été trouvé sur le prefab !");
+                Destroy(cardObj);
+                return;
+            }
+
+            // Applique les données de la carte
+            cardUI.Setup(drawnCard);
+
+            // ✅ Vérification du RectTransform avant modification
+            RectTransform rectTransform = cardObj.GetComponent<RectTransform>();
+            if (rectTransform != null)
+            {
+                rectTransform.anchoredPosition = new Vector2((hand.Count - 1) * 120, 0);
             }
             else
             {
-                GameManager.Instance.goldManager.GainGold(5);
-                Debug.Log("L'IA ne trouve pas de cible, elle économise pour le prochain tour.");
+                Debug.LogError("❌ Erreur : RectTransform introuvable sur le prefab !");
             }
+
+            // ✅ Mise à jour de l'affichage du deck
+            GameManager.Instance.UpdateDeckUI();
         }
-    }
-
-    public void TakeDamage(int damage)
-    {
-        Health -= damage;
-        Debug.Log($"L'IA subit {damage} dégâts. PV restants : {Health}");
-
-        if (Health <= 0)
-        {
-            Debug.Log("L'IA a été vaincue !");
-            GameManager.Instance.EndGame(true);
-        }
-    }
-
-    // ✅ Nouvelle fonction pour ralentir l'attaque
-    IEnumerator WaitBeforeNextAttack()
-    {
-        yield return new WaitForSeconds(0.5f);
     }
 }

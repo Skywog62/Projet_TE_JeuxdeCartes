@@ -10,8 +10,14 @@ public class Cell : MonoBehaviour
     {
         if (!isOccupied)
         {
-            GameObject card = Instantiate(Resources.Load<GameObject>("Card"));
-            card.transform.position = transform.position;
+            GameObject cardPrefab = GameManager.Instance.cardPrefab;
+            if (cardPrefab == null)
+            {
+                Debug.LogError("cardPrefab non trouvé dans GameManager !");
+                return;
+            }
+
+            GameObject card = Instantiate(cardPrefab, transform.position, Quaternion.identity);
             card.GetComponent<Card>().SetGridPosition(row, column);
             isOccupied = true;
         }

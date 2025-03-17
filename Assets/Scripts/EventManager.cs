@@ -13,7 +13,7 @@ public class EventManager : MonoBehaviour
         }
         else
         {
-            Card[] allCards = Object.FindObjectsByType<Card>(FindObjectsSortMode.None); // Compatible Unity 2023+
+            Card[] allCards = Object.FindObjectsByType<Card>(FindObjectsSortMode.None);
             foreach (Card card in allCards)
             {
                 card.attack += 1;

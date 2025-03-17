@@ -1,19 +1,24 @@
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
+using TMPro;
+using UnityEngine.XR;
 
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance;
 
-    public GameObject cardPrefab;
     public ScoutUI scoutUI;
     public GoldManager goldManager;
     public EventManager eventManager;
-    private IA enemyAI;
+    public IA enemyAI;
+    public PlayerManager player;
 
-    public List<Card> availableChampions = new List<Card>();
+    public Transform playerHandUI;
+    public Transform enemyHandUI;
+    public TextMeshProUGUI playerDeckCounter;
+    public TextMeshProUGUI enemyDeckCounter;
+    public GameObject cardPrefab; // Assurez-vous que CardPrefab_UI est assigné ici !
 
     private Card selectedCard;
     private bool gameOver = false;
@@ -29,173 +34,134 @@ public class GameManager : MonoBehaviour
 
     void Start()
     {
-        goldManager = FindFirstObjectByType<GoldManager>();
-        eventManager = FindFirstObjectByType<EventManager>();
+        playerHandUI = GameObject.Find("PlayerHand")?.transform;
+        enemyHandUI = GameObject.Find("EnemyHand")?.transform;
+        playerDeckCounter = GameObject.Find("PlayerDeckCounter")?.GetComponent<TextMeshProUGUI>();
+        enemyDeckCounter = GameObject.Find("EnemyDeckCounter")?.GetComponent<TextMeshProUGUI>();
+
+        player = FindFirstObjectByType<PlayerManager>();
         enemyAI = FindFirstObjectByType<IA>();
 
-        if (goldManager == null) Debug.LogError("GoldManager n'est pas trouvé dans la scène !");
-        if (eventManager == null) Debug.LogError("EventManager n'est pas trouvé dans la scène !");
-        if (enemyAI == null) Debug.LogError("L'IA (enemyAI) n'est pas trouvée !");
+        if (player == null) Debug.LogError("❌ PlayerManager n'est pas trouvé !");
+        if (enemyAI == null) Debug.LogError("❌ IA (enemyAI) non trouvée !");
+        if (cardPrefab == null) Debug.LogError("❌ CardPrefab_UI n'est pas assigné dans l'Inspector !");
 
-        goldManager.GainGold(goldManager.startingGold);
+        if (goldManager != null)
+            goldManager.GainGold(goldManager.startingGold);
+
         StartCoroutine(WaitForGridInitialization());
+        UpdateDeckUI();
     }
 
     IEnumerator WaitForGridInitialization()
     {
         GridManager gridManager = FindFirstObjectByType<GridManager>();
-        while (gridManager.gridCells == null) yield return null;
-
-        // Placement du joueur (en bas)
-        Vector3 posCardPlayer = gridManager.GetCellPosition(3, 1);
-        GameObject cardPlayerObj = Instantiate(cardPrefab, posCardPlayer, Quaternion.identity);
-        Card cardPlayer = cardPlayerObj.GetComponent<Card>();
-        cardPlayer.cardName = "Guerrier Revive";
-        cardPlayer.attack = 3;
-        cardPlayer.defense = 5;
-        cardPlayer.cost = 3;
-        cardPlayer.cardEffect = Card.EffectType.Revive;
-        cardPlayerObj.tag = "Player";
-
-        // Placement de l’IA (en haut)
-        Vector3 posCardIA = gridManager.GetCellPosition(0, 1);
-        GameObject cardIAObj = Instantiate(cardPrefab, posCardIA, Quaternion.identity);
-        Card cardIA = cardIAObj.GetComponent<Card>();
-        cardIA.cardName = "Archer Relentless";
-        cardIA.attack = 2;
-        cardIA.defense = 4;
-        cardIA.cost = 2;
-        cardIA.cardEffect = Card.EffectType.Relentless;
-        cardIAObj.tag = "Enemy";
+        while (gridManager == null || gridManager.gridCells == null) yield return null;
     }
 
     public void SelectCard(Card card)
     {
-        if (!isPlayerTurn) return;
-
-        if (selectedCard != null)
-            selectedCard.SetSelected(false);
-
-        selectedCard = card;
-        selectedCard.SetSelected(true);
-    }
-
-    public void AttackWithSelectedCard(Card target)
-    {
-        if (!isPlayerTurn || selectedCard == null || target == null) return;
-
-        List<Card> enemyCards = FindObjectsByType<Card>(FindObjectsSortMode.None)
-            .Where(c => c.CompareTag("Enemy")).ToList();
-
-        if (enemyCards.Count > 0 && !target.CompareTag("Enemy"))
+        if (card == null)
         {
-            Debug.Log("⚠️ Vous devez attaquer les cartes ennemies en premier !");
+            Debug.LogError("❌ Sélection de carte invalide !");
             return;
         }
+        selectedCard = card;
+        Debug.Log($"✅ Carte sélectionnée : {selectedCard.cardName}");
+    }
 
-        selectedCard.Attack(target);
-        selectedCard.SetSelected(false);
-        selectedCard = null;
+    public void CheckWinCondition()
+    {
+        if (player.Health <= 0)
+        {
+            EndGame(false);
+        }
+        else if (enemyAI.Health <= 0)
+        {
+            EndGame(true);
+        }
+    }
 
-        CheckWinCondition();
+    public void EndGame(bool playerWon)
+    {
+        if (gameOver) return;
+
+        gameOver = true;
+
+        string result = playerWon ? "🏆 Victoire du Joueur !" : "☠️ Défaite du Joueur...";
+        Debug.Log(result);
     }
 
     public void EndTurn()
     {
         if (!isPlayerTurn || gameOver) return;
 
-        CheckWinCondition();
-
-        if (!gameOver)
-        {
-            isPlayerTurn = false;
-            Debug.Log("Tour du joueur terminé. Passage à l'IA...");
-            StartCoroutine(EnemyTurn());
-        }
-    }
-
-    IEnumerator EnemyTurn()
-    {
-        yield return new WaitForSeconds(1);
-
-        Debug.Log("Tour de l'IA !");
+        isPlayerTurn = false;
         enemyAI.PlayTurn();
 
-        yield return new WaitForSeconds(1.5f);
+        StartCoroutine(WaitForEnemyTurn());
+    }
 
-        CheckWinCondition();
+    IEnumerator WaitForEnemyTurn()
+    {
+        yield return new WaitForSeconds(2);
+        isPlayerTurn = true;
+    }
 
-        if (!gameOver)
+    public void UpdateDeckUI()
+    {
+        if (playerDeckCounter != null && enemyDeckCounter != null)
         {
-            isPlayerTurn = true;
-            Debug.Log("Tour du joueur !");
+            playerDeckCounter.text = player != null ? $"Deck : {player.deck.Count} cartes" : "Deck : N/A";
+            enemyDeckCounter.text = enemyAI != null ? $"Deck IA : {enemyAI.deck.Count} cartes" : "Deck IA : N/A";
         }
     }
 
-    public void CheckWinCondition()
+    public void DrawCard(PlayerManager player)
     {
-        List<Card> playerCards = FindObjectsByType<Card>(FindObjectsSortMode.None)
-            .Where(c => c.CompareTag("Player")).ToList();
-
-        List<Card> enemyCards = FindObjectsByType<Card>(FindObjectsSortMode.None)
-            .Where(c => c.CompareTag("Enemy")).ToList();
-
-        PlayerManager player = FindFirstObjectByType<PlayerManager>();
-        IA enemy = FindFirstObjectByType<IA>();
-
-        if (playerCards.Count == 0)
+        if (player == null || player.deck.Count == 0)
         {
-            Debug.Log("💥 Le joueur n'a plus de cartes, il prend 10 dégâts !");
-            player.TakeDamage(10);
+            Debug.LogWarning("⚠️ Impossible de piocher, deck vide !");
+            return;
         }
 
-        if (enemyCards.Count == 0)
+        Card drawnCard = player.deck[0];
+        player.deck.RemoveAt(0);
+        player.hand.Add(drawnCard);
+        Debug.Log($"🃏 {player.playerName} pioche {drawnCard.cardName} !");
+
+        if (GameManager.Instance == null || GameManager.Instance.playerHandUI == null)
         {
-            Debug.Log("💥 L'IA n'a plus de cartes, elle prend 10 dégâts !");
-            enemy.TakeDamage(10);
+            Debug.LogWarning("⚠️ GameManager.Instance ou playerHandUI est NULL, impossible d'afficher la carte !");
+            return;
         }
 
-        if (player.Health <= 0)
+        GameObject cardObj = Instantiate(cardPrefab, playerHandUI);
+        cardObj.transform.SetParent(playerHandUI, false);
+
+        CardUI cardUI = cardObj.GetComponent<CardUI>();
+        if (cardUI == null)
         {
-            Debug.Log("💀 Défaite... Vous avez perdu !");
-            EndGame(false);
+            Debug.LogError("❌ CardUI n'est pas trouvé sur le prefab !");
+            Destroy(cardObj);
+            return;
         }
 
-        if (enemy.Health <= 0)
+        cardUI.Setup(drawnCard);
+
+        RectTransform rectTransform = cardObj.GetComponent<RectTransform>();
+        if (rectTransform != null)
         {
-            Debug.Log("🎉 Victoire ! L'IA a perdu !");
-            EndGame(true);
+            float cardSpacing = 120; // Espacement entre les cartes
+            rectTransform.anchoredPosition = new Vector2((player.hand.Count - 1) * cardSpacing, 0);
         }
-    }
-
-    public bool TryPickChampion(Card champion)
-    {
-        if (availableChampions.Contains(champion))
-        {
-            availableChampions.Remove(champion);
-            return true;
-        }
-        return false;
-    }
 
 
-    public void EndGame(bool playerWon)
-    {
-        gameOver = true;
-        isPlayerTurn = false;
-
-        if (playerWon)
-            Debug.Log("🏆 Vous avez gagné !");
         else
-            Debug.Log("😵 Vous avez perdu...");
+        {
+            Debug.LogError("❌ Erreur : RectTransform introuvable sur le prefab !");
+        }
 
-        GameObject endTurnButton = GameObject.Find("EndTurnButton");
-        if (endTurnButton != null) endTurnButton.SetActive(false);
-    }
-
-    public void ForfeitGame()
-    {
-        Debug.Log("Le joueur a abandonné la partie.");
-        EndGame(false);
+        UpdateDeckUI();
     }
 }

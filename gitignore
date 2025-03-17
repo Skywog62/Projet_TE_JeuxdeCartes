@@ -1,0 +1,30 @@
+# Exclure les fichiers générés par Unity (ne pas les ajouter au dépôt)
+Library/
+Temp/
+Obj/
+Logs/
+UserSettings/
+Packages/
+ProjectSettings/
+
+# Exclure les fichiers des builds
+Build/
+Builds/
+ExportedObj/
+
+# Exclure les fichiers de configuration personnelles
+.vscode/
+*.csproj
+*.sln
+*.unitypackage
+
+# Exclure les fichiers de cache et métadonnées
+*.pidb
+*.suo
+*.user
+*.ttf
+*.tps
+*.blend1
+
+# Exclure les fichiers de Git LFS (si utilisé)
+.GitLFS/

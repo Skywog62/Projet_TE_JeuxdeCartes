@@ -3,7 +3,7 @@ using TMPro;
 
 public class ScoutUI : MonoBehaviour
 {
-    public TextMeshPro economyText;
+    public TextMeshProUGUI economyText;
 
     public void UpdateScoutInfo(PlayerManager player)
     {
@@ -13,13 +13,10 @@ public class ScoutUI : MonoBehaviour
             return;
         }
 
-        string strength = player.EconomyStrength > 5 ? 
-            "<color=green>FORTE</color>" : 
-            "<color=red>FAIBLE</color>";
-        
-        string strategy = player.currentStrategy == PlayerManager.Strategy.Economic ?
-            "Économique" : "Agressive";
+        string strength = player.EconomyStrength > 5 ? "<color=green>FORTE</color>" : "<color=red>FAIBLE</color>";
+        string strategy = player.currentStrategy == PlayerManager.Strategy.Economic ? "Économique" : "Agressive";
 
         economyText.text = $"{player.playerName}\nStratégie : {strategy}\nÉconomie : {strength}";
     }
 }
+
